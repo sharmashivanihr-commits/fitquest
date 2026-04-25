@@ -25,6 +25,18 @@ const getISTDate = () => {
   return ist.toISOString().split("T")[0];
 };
 
+const getDayDates = (offset=0) => {
+  const result = [];
+  const d = new Date();
+  const dow = d.getDay();
+  d.setDate(d.getDate() - ((dow+6)%7) - (offset*7));
+  for(let i=0;i<7;i++){
+    result.push(d.toISOString().split("T")[0]);
+    d.setDate(d.getDate()+1);
+  }
+  return result;
+};
+
 const getBattleWeekInfo = (startDate) => {
   if (!startDate) return null;
   const start = new Date(startDate);
@@ -124,7 +136,13 @@ const MILESTONES = [
 const ACTIVITIES = ["Work","Eating","Rest","Screen Time","Exercise","Personal","Other"];
 const ACT_COLORS = ["#f59e0b","#10b981","#6366f1","#ef4444","#3b82f6","#ec4899","#8b5cf6"];
 const MEALS_LIST = ["Breakfast","Lunch","Dinner","Snack"];
-const HERBAL = ["F1 Shake 🥤","Protein Powder 💪","Active Fiber 🌾","Afresh Energy ⚡","Cell-U-Loss 💊"];
+const HERBAL = [
+  {name:"F1 Shake 🥤",           cal:220},
+  {name:"Protein Powder 💪",     cal:110},
+  {name:"Active Fiber 🌾",       cal:30},
+  {name:"Afresh Energy ⚡",      cal:10},
+  {name:"Cell-U-Loss 💊",        cal:5},
+];
 const MEAL_PLAN = [
   { time:"7-8 AM",      meal:"Afresh energy drink (empty stomach)"           },
   { time:"8-9 AM",      meal:"F1 Shake + Protein Powder + Active Fiber"      },
@@ -159,6 +177,631 @@ const SKILL_TREE = [
 ];
 const STEP_WEEKLY_TARGETS = [2000,3500,5000,7000,10000,12000,14000];
 
+
+// ═══════════════════════════════════════════
+// INDIAN VEGETARIAN FOOD DATABASE (calories per standard serving)
+// Source: ICMR-NIN Nutritive Value of Indian Foods + NutritionValue.org
+// ═══════════════════════════════════════════
+const FOOD_DB = [
+  // Breads & Grains
+  {name:"Roti / Chapati (1 medium)",cal:70,cat:"🌾 Breads"},
+  {name:"Paratha plain (1 medium)",cal:150,cat:"🌾 Breads"},
+  {name:"Paratha stuffed aloo (1)",cal:210,cat:"🌾 Breads"},
+  {name:"Puri (1 medium)",cal:110,cat:"🌾 Breads"},
+  {name:"Naan plain (1 piece)",cal:262,cat:"🌾 Breads"},
+  {name:"Bhatura (1 medium)",cal:200,cat:"🌾 Breads"},
+  {name:"Bread white (1 slice)",cal:70,cat:"🌾 Breads"},
+  {name:"Bread brown (1 slice)",cal:65,cat:"🌾 Breads"},
+  // Rice
+  {name:"Rice cooked (1 cup / 200g)",cal:260,cat:"🍚 Rice"},
+  {name:"Jeera rice (1 cup)",cal:300,cat:"🍚 Rice"},
+  {name:"Biryani veg (1 cup)",cal:350,cat:"🍚 Rice"},
+  {name:"Khichdi (1 cup)",cal:220,cat:"🍚 Rice"},
+  {name:"Poha (1 cup)",cal:270,cat:"🍚 Rice"},
+  {name:"Upma (1 cup)",cal:250,cat:"🍚 Rice"},
+  {name:"Idli (1 piece)",cal:39,cat:"🍚 Rice"},
+  {name:"Dosa plain (1 medium)",cal:120,cat:"🍚 Rice"},
+  {name:"Dosa masala (1 medium)",cal:210,cat:"🍚 Rice"},
+  {name:"Uttapam (1 medium)",cal:180,cat:"🍚 Rice"},
+  // Dal & Legumes
+  {name:"Dal tadka (1 cup)",cal:150,cat:"🫘 Dal"},
+  {name:"Dal makhani (1 cup)",cal:220,cat:"🫘 Dal"},
+  {name:"Chana masala (1 cup)",cal:270,cat:"🫘 Dal"},
+  {name:"Rajma (1 cup)",cal:230,cat:"🫘 Dal"},
+  {name:"Moong dal (1 cup)",cal:140,cat:"🫘 Dal"},
+  {name:"Masoor dal (1 cup)",cal:150,cat:"🫘 Dal"},
+  {name:"Sambar (1 cup)",cal:90,cat:"🫘 Dal"},
+  {name:"Chole (1 cup)",cal:270,cat:"🫘 Dal"},
+  {name:"Sprouts boiled (1 cup)",cal:80,cat:"🫘 Dal"},
+  {name:"Peas curry (1 cup)",cal:160,cat:"🫘 Dal"},
+  // Vegetables
+  {name:"Sabzi / veg curry (1 cup)",cal:100,cat:"🥦 Vegetables"},
+  {name:"Aloo sabzi (1 cup)",cal:180,cat:"🥦 Vegetables"},
+  {name:"Palak paneer (1 cup)",cal:260,cat:"🥦 Vegetables"},
+  {name:"Matar paneer (1 cup)",cal:280,cat:"🥦 Vegetables"},
+  {name:"Baingan bharta (1 cup)",cal:120,cat:"🥦 Vegetables"},
+  {name:"Bhindi masala (1 cup)",cal:110,cat:"🥦 Vegetables"},
+  {name:"Gobi sabzi (1 cup)",cal:130,cat:"🥦 Vegetables"},
+  {name:"Mixed veg curry (1 cup)",cal:120,cat:"🥦 Vegetables"},
+  {name:"Saag (1 cup)",cal:100,cat:"🥦 Vegetables"},
+  {name:"Kadhi (1 cup)",cal:140,cat:"🥦 Vegetables"},
+  // Snacks
+  {name:"Samosa (1 piece)",cal:135,cat:"🧆 Snacks"},
+  {name:"Kachori (1 piece)",cal:200,cat:"🧆 Snacks"},
+  {name:"Pakora / Bhajiya (4-5 pcs)",cal:170,cat:"🧆 Snacks"},
+  {name:"Dhokla (2 pieces)",cal:80,cat:"🧆 Snacks"},
+  {name:"Idli (2 pieces)",cal:78,cat:"🧆 Snacks"},
+  {name:"Vada pav (1)",cal:290,cat:"🧆 Snacks"},
+  {name:"Pani puri (6 pieces)",cal:150,cat:"🧆 Snacks"},
+  {name:"Bhel puri (1 cup)",cal:180,cat:"🧆 Snacks"},
+  {name:"Popcorn plain (1 cup)",cal:55,cat:"🧆 Snacks"},
+  {name:"Roasted chana (handful)",cal:120,cat:"🧆 Snacks"},
+  {name:"Sprouts chaat (1 bowl)",cal:100,cat:"🧆 Snacks"},
+  {name:"Murmura / Puffed rice (1 cup)",cal:60,cat:"🧆 Snacks"},
+  // Dairy
+  {name:"Milk full fat (1 glass/250ml)",cal:150,cat:"🥛 Dairy"},
+  {name:"Milk toned (1 glass/250ml)",cal:120,cat:"🥛 Dairy"},
+  {name:"Curd / Dahi (1 cup)",cal:100,cat:"🥛 Dairy"},
+  {name:"Paneer (100g)",cal:265,cat:"🥛 Dairy"},
+  {name:"Paneer low fat (100g)",cal:200,cat:"🥛 Dairy"},
+  {name:"Buttermilk / Chaas (1 glass)",cal:40,cat:"🥛 Dairy"},
+  {name:"Lassi sweet (1 glass)",cal:180,cat:"🥛 Dairy"},
+  {name:"Lassi salted (1 glass)",cal:100,cat:"🥛 Dairy"},
+  {name:"Cheese slice (1 piece)",cal:70,cat:"🥛 Dairy"},
+  {name:"Ghee (1 tsp)",cal:45,cat:"🥛 Dairy"},
+  {name:"Butter (1 tsp)",cal:36,cat:"🥛 Dairy"},
+  // Fruits
+  {name:"Apple (1 medium)",cal:80,cat:"🍎 Fruits"},
+  {name:"Banana (1 medium)",cal:90,cat:"🍎 Fruits"},
+  {name:"Orange (1 medium)",cal:60,cat:"🍎 Fruits"},
+  {name:"Mango (1 cup sliced)",cal:100,cat:"🍎 Fruits"},
+  {name:"Papaya (1 cup)",cal:55,cat:"🍎 Fruits"},
+  {name:"Guava (1 medium)",cal:70,cat:"🍎 Fruits"},
+  {name:"Watermelon (1 cup)",cal:46,cat:"🍎 Fruits"},
+  {name:"Grapes (1 cup)",cal:90,cat:"🍎 Fruits"},
+  {name:"Pomegranate (1 cup seeds)",cal:83,cat:"🍎 Fruits"},
+  {name:"Pear (1 medium)",cal:90,cat:"🍎 Fruits"},
+  // Drinks
+  {name:"Chai with milk & sugar (1 cup)",cal:60,cat:"☕ Drinks"},
+  {name:"Chai without sugar (1 cup)",cal:30,cat:"☕ Drinks"},
+  {name:"Coffee with milk (1 cup)",cal:50,cat:"☕ Drinks"},
+  {name:"Coconut water (1 glass)",cal:45,cat:"☕ Drinks"},
+  {name:"Fresh lime water sugar (1 glass)",cal:60,cat:"☕ Drinks"},
+  {name:"Fresh lime water plain (1 glass)",cal:10,cat:"☕ Drinks"},
+  {name:"Herbalife F1 shake (1 serving)",cal:220,cat:"☕ Drinks"},
+  // Sweets
+  {name:"Ladoo besan (1 piece)",cal:180,cat:"🍬 Sweets"},
+  {name:"Halwa (1 cup)",cal:350,cat:"🍬 Sweets"},
+  {name:"Kheer (1 cup)",cal:200,cat:"🍬 Sweets"},
+  {name:"Gulab jamun (1 piece)",cal:150,cat:"🍬 Sweets"},
+  {name:"Rasgulla (1 piece)",cal:100,cat:"🍬 Sweets"},
+  {name:"Ice cream (1 scoop)",cal:130,cat:"🍬 Sweets"},
+  {name:"Chocolate (1 square/10g)",cal:55,cat:"🍬 Sweets"},
+];
+
+
+// ═══════════════════════════════════════════
+// INTERMITTENT FASTING LEVELS
+// ═══════════════════════════════════════════
+// Global style helpers (used by components outside App)
+const card = { background: "#181818", border:"1px solid #2e2e2e", borderRadius:14, padding:16, marginBottom:12 };
+const inp = { background:"#111111", border:"1px solid #3a3a3a", borderRadius:9, padding:"10px 13px", color:"#f0f0f0", fontSize:13, width:"100%", boxSizing:"border-box", outline:"none" };
+const btn = (v="primary") => ({ background: v==="primary"?"#f59e0b":v==="danger"?"#ef4444":v==="success"?"#10b981":v==="purple"?"#6d28d9":"#2a2a2a", color:v==="primary"?"#000":"#fff", border:v==="ghost"?"1px solid #3a3a3a":"none", borderRadius:9, padding:"10px 16px", cursor:"pointer", fontWeight:600, fontSize:13 });
+
+
+const IF_LEVELS = [
+  { id:1, name:"Beginner",    window:"8AM – 8PM",  start:"08:00", end:"20:00", hours:12, meals:["Breakfast","Lunch","Dinner","Snack"],  color:"#10b981", desc:"12 hour eating window — gentle start" },
+  { id:2, name:"Warrior",     window:"9AM – 7PM",  start:"09:00", end:"19:00", hours:10, meals:["Breakfast","Lunch","Dinner","Snack"],  color:"#f59e0b", desc:"10 hour window — building discipline" },
+  { id:3, name:"Battle Mode", window:"11AM – 7PM", start:"11:00", end:"19:00", hours:8,  meals:["Lunch","Dinner","Snack"],             color:"#ef4444", desc:"8 hour window — serious warrior" },
+  { id:4, name:"Elite",       window:"12PM – 6PM", start:"12:00", end:"18:00", hours:6,  meals:["Lunch","Dinner"],                     color:"#7c3aed", desc:"6 hour window — elite level" },
+];
+
+
+
+const fmtTime = (h24, m) => {
+  const period = h24 >= 12 ? "PM" : "AM";
+  const h12 = h24 > 12 ? h24 - 12 : h24 === 0 ? 12 : h24;
+  return `${h12}:${String(m||0).padStart(2,"0")} ${period}`;
+};
+const calcEndTime = (startTime, hours) => {
+  if(!startTime) return "";
+  const [h, m] = startTime.split(":").map(Number);
+  return fmtTime((h + hours) % 24, m);
+};
+const formatStartTime = (t) => {
+  if(!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  return fmtTime(h, m);
+};
+
+
+
+
+const FastDayLog = ({ entries, onAdd, onRemove, onEdit, customFoods, onAddCustom, ifWindow }) => {
+  const [input, setInput] = useState("");
+  const [manualCal, setManualCal] = useState("");
+  const [matchFound, setMatchFound] = useState(null);
+  const [showManual, setShowManual] = useState(false);
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [editCal, setEditCal] = useState("");
+
+  const allFoods = [...FOOD_DB, ...Object.values(customFoods)];
+  const totalCal = entries.reduce((s, e) => s + (e.cal || 0), 0);
+
+  const handleSearch = (val) => {
+    setInput(val);
+    setShowManual(false);
+    setManualCal("");
+    if (val.length > 1) {
+      const found = allFoods.find(f => f.name.toLowerCase().includes(val.toLowerCase()));
+      setMatchFound(found || null);
+    } else {
+      setMatchFound(null);
+    }
+  };
+
+  const addItem = (food) => {
+    onAdd({ name: food.name, cal: food.cal });
+    setInput(""); setMatchFound(null); setShowManual(false); setManualCal("");
+  };
+
+  const addManual = () => {
+    if (!input.trim() || !manualCal) return;
+    const food = { name: input.trim(), cal: parseInt(manualCal) || 0, cat: "⭐ My Foods" };
+    onAddCustom(food);
+    onAdd(food);
+    setInput(""); setManualCal(""); setShowManual(false); setMatchFound(null);
+  };
+
+  return (
+    <div style={{ ...card, border: "1px solid #818cf844", background: "#0a0a1a" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#818cf8" }}>⚡ Fast Day Log</div>
+        {totalCal > 0 && <div style={{ fontSize: 12, color: C.gold, fontWeight: 700 }}>{totalCal} kcal</div>}
+      </div>
+      {ifWindow && <div style={{ fontSize: 10, color: "#818cf8", marginBottom: 10 }}>Reference window: {ifWindow}</div>}
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>Type anything you consumed — system will auto-find calories</div>
+
+      <input style={{ ...inp, marginBottom: 8 }} placeholder="e.g. coconut water, apple, lemon water..." value={input} onChange={e => handleSearch(e.target.value)} />
+
+      {/* Auto match found */}
+      {matchFound && !showManual && (
+        <div style={{ background: "#0a1a00", borderRadius: 8, padding: 12, marginBottom: 8, border: `1px solid ${C.green}44` }}>
+          <div style={{ fontSize: 11, color: C.green, marginBottom: 6 }}>✓ Found in database:</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{matchFound.name}</div>
+              <div style={{ fontSize: 11, color: C.gold }}>{matchFound.cal} kcal</div>
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button style={{ ...btn("success"), fontSize: 11, padding: "6px 12px" }} onClick={() => addItem(matchFound)}>Add ✓</button>
+              <button style={{ ...btn("ghost"), fontSize: 11, padding: "6px 12px" }} onClick={() => setShowManual(true)}>Different cal</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Not found — manual entry */}
+      {input.length > 1 && !matchFound && !showManual && (
+        <div style={{ background: "#111", borderRadius: 8, padding: 12, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>Not in database — enter calories manually</div>
+          <input style={{ ...inp, marginBottom: 8 }} type="number" placeholder="Calories (kcal)" value={manualCal} onChange={e => setManualCal(e.target.value)} />
+          <button style={{ ...btn(), width: "100%", fontSize: 12 }} onClick={addManual}>Add with manual calories ✓</button>
+        </div>
+      )}
+
+      {/* Override calories */}
+      {showManual && (
+        <div style={{ background: "#111", borderRadius: 8, padding: 12, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>Enter your own calories for: <span style={{ color: C.text }}>{matchFound?.name}</span></div>
+          <input style={{ ...inp, marginBottom: 8 }} type="number" placeholder="Your calorie amount" value={manualCal} onChange={e => setManualCal(e.target.value)} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={{ ...btn(), flex: 1, fontSize: 12 }} onClick={() => { if(!input.trim()||!manualCal) return; onAdd({name:input.trim(),cal:parseInt(manualCal)||0}); setInput("");setManualCal("");setShowManual(false);setMatchFound(null); }}>Add ✓</button>
+            <button style={{ ...btn("ghost"), fontSize: 12 }} onClick={() => setShowManual(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Log entries */}
+      {entries.length > 0 && (
+        <div style={{ background: "#111", borderRadius: 8, overflow: "hidden", marginTop: 8 }}>
+          {entries.map((e, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: i < entries.length - 1 ? `1px solid #1a1a1a` : "none" }}>
+              <span style={{ flex: 1, fontSize: 12 }}>{e.name}</span>
+              {editingIdx === i ? (
+                <div style={{ display: "flex", gap: 4 }}>
+                  <input style={{ ...inp, width: 60, fontSize: 11, padding: "4px 6px" }} type="number" value={editCal} onChange={ev => setEditCal(ev.target.value)} autoFocus />
+                  <button style={{ ...btn("success"), fontSize: 10, padding: "4px 8px" }} onClick={() => { onEdit(i, parseInt(editCal) || e.cal); setEditingIdx(null); }}>✓</button>
+                </div>
+              ) : (
+                <span style={{ fontSize: 12, color: C.gold, fontWeight: 700, cursor: "pointer" }} onClick={() => { setEditingIdx(i); setEditCal(String(e.cal)); }}>{e.cal} ✏️</span>
+              )}
+              <button style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 14 }} onClick={() => onRemove(i)}>×</button>
+            </div>
+          ))}
+          <div style={{ textAlign: "right", padding: "6px 12px", fontSize: 12, color: C.gold, fontWeight: 700, borderTop: `1px solid #1a1a1a` }}>Fast day total: {totalCal} kcal</div>
+        </div>
+      )}
+
+      {entries.length === 0 && (
+        <div style={{ textAlign: "center", padding: "20px 0", color: C.muted, fontSize: 12 }}>Nothing logged yet — type above to add</div>
+      )}
+    </div>
+  );
+};
+
+
+const WeekDateTabs = ({ battleStartDate }) => {
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  // Calculate current battle week days from battle start date
+  const getBattleWeekDays = () => {
+    if(!battleStartDate) return [];
+    const start = new Date(battleStartDate);
+    const today = new Date(todayStr);
+    const diffDays = Math.floor((today - start) / 86400000);
+    if(diffDays < 0) return [];
+    const weekNum = Math.floor(diffDays / 7);
+    const weekStart = new Date(start);
+    weekStart.setDate(start.getDate() + weekNum * 7);
+    const days = [];
+    for(let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  };
+
+  const weekDays = getBattleWeekDays();
+  const dayLabels = ["Day 1","Day 2","Day 3","Day 4","Day 5","Day 6","⚡ Rest"];
+
+  if(!battleStartDate) return (
+    <div style={{ fontSize: 11, color: C.muted, padding: "8px 0", fontStyle: "italic" }}>
+      Set your Battle Start Date in the Realm tab to see your week here.
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ fontSize: 9, color: C.muted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>📅 Battle Week</div>
+      <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 4 }}>
+        {weekDays.map((day, i) => {
+          const ds = day.toISOString().split("T")[0];
+          const isToday = ds === todayStr;
+          const isPast = ds < todayStr;
+          const isRecharge = i === 6;
+          const dayNum = day.getDate();
+          const month = day.toLocaleString("default", { month: "short" });
+
+          return (
+            <div key={i} style={{
+              flexShrink: 0,
+              minWidth: 46,
+              borderRadius: 10,
+              padding: "8px 5px",
+              textAlign: "center",
+              border: `2px solid ${isToday ? C.gold : isRecharge ? "#818cf8" : isPast ? C.green : "#2a2a2a"}`,
+              background: isToday ? "#1c1000" : isRecharge ? "#0a0a1a" : isPast ? "#052e16" : "#0f0f0f",
+              transition: "all 0.2s",
+            }}>
+              <div style={{ fontSize: 8, color: isToday ? C.gold : isRecharge ? "#818cf8" : isPast ? C.green : C.muted, fontWeight: 700, marginBottom: 3 }}>
+                {dayLabels[i]}
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 900, color: isToday ? C.gold : isRecharge ? "#818cf8" : isPast ? C.green : "#444" }}>
+                {dayNum}
+              </div>
+              <div style={{ fontSize: 8, color: isToday ? C.gold : isRecharge ? "#818cf8" : isPast ? "#6ee7b7" : "#333", marginTop: 2 }}>
+                {month}
+              </div>
+              {isPast && !isRecharge && <div style={{ fontSize: 9, color: C.green, marginTop: 2 }}>✓</div>}
+              {isToday && <div style={{ fontSize: 7, color: C.gold, fontWeight: 800, marginTop: 2, letterSpacing: 0.5 }}>TODAY</div>}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 9, color: C.muted }}>
+        <span style={{ color: C.gold }}>■ Today</span>
+        <span style={{ color: C.green }}>■ Done</span>
+        <span style={{ color: "#818cf8" }}>■ Recharge</span>
+        <span style={{ color: "#444" }}>■ Upcoming</span>
+      </div>
+    </div>
+  );
+};
+
+
+const IFLevelSelector = ({ onSelect }) => {
+  const [pickedLevel, setPickedLevel] = useState(null);
+  const [startTime, setStartTime] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const lv = IF_LEVELS.find(l => l.id === pickedLevel);
+
+  const handleConfirm = () => {
+    if(startTime && pickedLevel) {
+      setConfirmed(true);
+    }
+  };
+
+  // Week date calculation
+  const getWeekDates = () => {
+    const today = new Date();
+    const day = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((day + 6) % 7));
+    const saturday = new Date(monday);
+    saturday.setDate(monday.getDate() + 5);
+    const recharge = new Date(monday);
+    recharge.setDate(monday.getDate() + 6);
+    const fmt = (d) => d.toLocaleDateString("en-IN", { day:"numeric", month:"short" });
+    return { start: fmt(monday), end: fmt(saturday), recharge: fmt(recharge) };
+  };
+  const weekDates = getWeekDates();
+
+  // Once confirmed — show locked state, cannot change
+  if(confirmed && lv) return (
+    <div style={{ background: lv.color+"11", borderRadius: 10, padding: 14, border: `1px solid ${lv.color}` }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+        <div style={{ fontSize:13, fontWeight:700, color:lv.color }}>Level {lv.id} — {lv.name}</div>
+        <div style={{ fontSize:10, color:C.red, background:"#1a0000", padding:"3px 8px", borderRadius:12, border:`1px solid ${C.red}44` }}>🔒 LOCKED</div>
+      </div>
+
+      {/* Week dates */}
+      <div style={{ background:"#0a0a0a", borderRadius:8, padding:10, marginBottom:12, border:`1px solid #2a2a2a` }}>
+        <div style={{ fontSize:9, color:C.muted, letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>📅 Battle Week</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:9, color:C.muted, marginBottom:3 }}>Week Starts</div>
+            <div style={{ fontSize:13, fontWeight:800, color:lv.color }}>{weekDates.start}</div>
+          </div>
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:9, color:C.muted, marginBottom:3 }}>Week Ends</div>
+            <div style={{ fontSize:13, fontWeight:800, color:lv.color }}>{weekDates.end}</div>
+          </div>
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:9, color:"#818cf8", marginBottom:3 }}>Recharge Day</div>
+            <div style={{ fontSize:13, fontWeight:800, color:"#818cf8" }}>{weekDates.recharge}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Daily eating window */}
+      <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+        <div style={{ flex:1, background:"#0a0a0a", borderRadius:8, padding:12, textAlign:"center" }}>
+          <div style={{ fontSize:9, color:C.muted, marginBottom:4 }}>EATING FROM</div>
+          <div style={{ fontSize:18, fontWeight:800, color:lv.color }}>{formatStartTime(startTime)}</div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", fontSize:20, color:C.muted }}>→</div>
+        <div style={{ flex:1, background:"#0a0a0a", borderRadius:8, padding:12, textAlign:"center" }}>
+          <div style={{ fontSize:9, color:C.muted, marginBottom:4 }}>EATING UNTIL</div>
+          <div style={{ fontSize:18, fontWeight:800, color:lv.color }}>{calcEndTime(startTime, lv.hours)}</div>
+        </div>
+      </div>
+
+      <div style={{ textAlign:"center", fontSize:11, color:C.muted, marginBottom:12 }}>{lv.hours} hour window daily · {lv.desc}</div>
+      <button style={{ ...btn(), width:"100%", fontSize:13, padding:"12px" }}
+        onClick={() => onSelect(pickedLevel, startTime)}>
+        ⚔️ Begin This Week's Battle
+      </button>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>
+        Choose your level → enter start time → end time auto-calculates → lock for the week.
+      </div>
+
+      {/* Level cards */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+        {IF_LEVELS.map(l => (
+          <button key={l.id}
+            style={{ padding: "12px 14px", borderRadius: 10, border: `2px solid ${pickedLevel === l.id ? l.color : l.color+"33"}`, background: pickedLevel === l.id ? l.color+"22" : "#111", cursor: "pointer", textAlign: "left", transition: "all 0.2s" }}
+            onClick={() => { setPickedLevel(l.id); setStartTime(""); setConfirmed(false); }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: l.color }}>Level {l.id} — {l.name}</div>
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 2, fontStyle: "italic" }}>{l.desc}</div>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: l.color }}>{l.hours}h</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Time entry — only shows after level picked */}
+      {pickedLevel && !confirmed && (
+        <div style={{ background: "#111", borderRadius: 10, padding: 14, border: `1px solid ${lv?.color}44` }}>
+          <div style={{ fontSize: 12, color: lv?.color, fontWeight: 700, marginBottom: 12 }}>
+            Level {pickedLevel} — {lv?.name} · {lv?.hours}hr window
+          </div>
+
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>When does your eating start today?</div>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>Start time</div>
+              <input
+                style={{ ...inp, fontSize: 14, fontWeight: 700, color: lv?.color }}
+                type="time"
+                value={startTime}
+                onChange={e => setStartTime(e.target.value)}
+              />
+              {startTime && <div style={{ fontSize: 11, color: lv?.color, marginTop: 4, fontWeight: 700 }}>{formatStartTime(startTime)}</div>}
+            </div>
+            <div style={{ fontSize: 24, color: C.muted, paddingBottom: 12 }}>→</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>End time (auto)</div>
+              <div style={{ ...inp, fontSize: 14, fontWeight: 700, color: lv?.color, background: "#0a0a0a", border: `1px solid ${lv?.color}44` }}>
+                {startTime ? calcEndTime(startTime, lv?.hours) : "—"}
+              </div>
+            </div>
+          </div>
+
+          {startTime && (
+            <div style={{ background: lv?.color+"22", borderRadius: 8, padding: "10px 14px", marginBottom: 12, textAlign: "center", border: `1px solid ${lv?.color}44` }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: lv?.color }}>
+                {formatStartTime(startTime)} → {calcEndTime(startTime, lv?.hours)}
+              </div>
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{lv?.hours} hour eating window</div>
+            </div>
+          )}
+
+          <button
+            style={{ ...btn(), width: "100%", fontSize: 13, padding: "12px", opacity: startTime ? 1 : 0.4, cursor: startTime ? "pointer" : "not-allowed" }}
+            onClick={handleConfirm}
+            disabled={!startTime}>
+            🔒 Lock This Week's Level
+          </button>
+          <div style={{ fontSize: 10, color: C.red, textAlign: "center", marginTop: 6 }}>⚠️ Cannot be changed after locking</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const KingdomDecree = ({ ifData, startTime, decreeChecked, setDecreeChecked, totalDayCal, calorieTarget }) => {
+  const [slots, setSlots] = useState(() => {
+    return (ifData?.meals || ["Breakfast","Lunch","Dinner","Snack"]).map(s => ({ time:"", meal:"", slot:s }));
+  });
+  const [newTime, setNewTime] = useState("");
+  const [newMeal, setNewMeal] = useState("");
+  const [dayDone, setDayDone] = useState(false);
+
+  const addSlot = () => {
+    if(!newTime.trim() && !newMeal.trim()) return;
+    setSlots(prev => [...prev, { time:newTime, meal:newMeal, slot:`custom_${Date.now()}` }]);
+    setNewTime(""); setNewMeal("");
+  };
+  const removeSlot = (idx) => setSlots(prev => prev.filter((_,i) => i !== idx));
+  const updateSlot = (idx, field, val) => {
+    setSlots(prev => { const u=[...prev]; u[idx]={...u[idx],[field]:val}; return u; });
+  };
+
+  // Day wrap-up — triggers when ALL slots are checked
+  const allChecked = slots.length > 0 && slots.every((_,i) => decreeChecked[i]);
+  const under = totalDayCal <= calorieTarget;
+
+  return (
+    <div style={card}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>📋 Kingdom Meal Decree</div>
+
+      {/* Window banner */}
+      {ifData && (
+        <div style={{ background: ifData.color+"22", borderRadius: 8, padding: "8px 12px", marginBottom: 14, border: `1px solid ${ifData.color}44`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div style={{ fontSize: 11, color: ifData.color }}>⏱ {ifData.name} — {ifData.hours}hr window</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: ifData.color }}>{startTime ? `${formatStartTime(startTime)} → ${calcEndTime(startTime, ifData.hours)}` : ""}</div>
+        </div>
+      )}
+
+      {/* Day wrap-up banner */}
+      {allChecked && (
+        <div style={{ background: under ? "#052e16" : "#1c0505", borderRadius: 10, padding: "14px 16px", marginBottom: 14, border: `1px solid ${under ? C.green : C.red}`, textAlign:"center" }}>
+          <div style={{ fontSize: 24, marginBottom: 6 }}>{under ? "⚔️" : "🔥"}</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: under ? C.green : C.red, marginBottom: 4 }}>
+            {under ? "Day Complete — Well Done Warrior!" : "Day Complete — Push Harder Tomorrow!"}
+          </div>
+          <div style={{ fontSize: 12, color: under ? "#6ee7b7" : "#fca5a5", lineHeight: 1.6 }}>
+            {under
+              ? `You stayed within your target today. ${calorieTarget - totalDayCal} kcal to spare. Eiraya is disciplined. ⚔️`
+              : `${totalDayCal - calorieTarget} kcal over target today. Every warrior slips. Tomorrow — tighter discipline. You've got this. 🔥`
+            }
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>{totalDayCal} kcal eaten · Target: {calorieTarget} kcal</div>
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>Your weekly meal plan. Tick each item as you complete it. When all done — day wraps up!</div>
+
+      {slots.map((s, i) => {
+        const checked = decreeChecked[i] || false;
+        return (
+          <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", padding:"8px 0", borderBottom:`1px solid ${C.border}` }}>
+            <div style={{ width:22, height:22, borderRadius:5, background:checked?C.green:"#0f0f0f", border:`1px solid ${checked?C.green:C.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2, cursor:"pointer", transition:"all 0.2s" }}
+              onClick={() => setDecreeChecked(prev => ({...prev,[i]:!prev[i]}))}>
+              {checked && <span style={{ fontSize:12, color:"#000", fontWeight:800 }}>✓</span>}
+            </div>
+            <div style={{ flex:1 }}>
+              <input style={{ ...inp, fontSize:11, padding:"5px 8px", marginBottom:3, color:C.gold, background:"transparent", border:"none", borderBottom:`1px solid #2a2a2a`, borderRadius:0 }}
+                placeholder="Time (e.g. 9AM)" value={s.time} onChange={e => updateSlot(i,"time",e.target.value)}/>
+              <input style={{ ...inp, fontSize:12, padding:"5px 8px", background:"transparent", border:"none", borderBottom:`1px solid #1a1a1a`, borderRadius:0, textDecoration:checked?"line-through":"none", color:checked?C.muted:C.text }}
+                placeholder="What you'll eat..." value={s.meal} onChange={e => updateSlot(i,"meal",e.target.value)}/>
+            </div>
+            <button style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:16, marginTop:2 }} onClick={() => removeSlot(i)}>×</button>
+          </div>
+        );
+      })}
+
+      {/* Add slot */}
+      {!allChecked && (
+        <div style={{ marginTop:12, padding:12, background:"#111", borderRadius:8 }}>
+          <div style={{ fontSize:10, color:C.muted, marginBottom:8 }}>+ Add meal slot</div>
+          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+            <input style={{ ...inp, flex:"0 0 90px", fontSize:11 }} placeholder="Time" value={newTime} onChange={e => setNewTime(e.target.value)}/>
+            <input style={{ ...inp, flex:1, fontSize:11 }} placeholder="What you'll eat..." value={newMeal} onChange={e => setNewMeal(e.target.value)} onKeyDown={e => e.key==="Enter" && addSlot()}/>
+          </div>
+          <button style={{ ...btn("ghost"), width:"100%", fontSize:11 }} onClick={addSlot}>+ Add Slot</button>
+        </div>
+      )}
+
+      {/* DONE FOR THE DAY — final tick */}
+      {slots.length > 0 && (
+        <div style={{ marginTop:14, padding:14, background: dayDone?"#052e16":"#0f0f0f", borderRadius:10, border:`2px solid ${dayDone?C.green:"#333"}`, cursor:"pointer", transition:"all 0.3s" }}
+          onClick={() => !dayDone && setDayDone(true)}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:28, height:28, borderRadius:7, background:dayDone?C.green:"#1a1a1a", border:`2px solid ${dayDone?C.green:"#444"}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all 0.3s" }}>
+              {dayDone && <span style={{ fontSize:16, color:"#000", fontWeight:900 }}>✓</span>}
+            </div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:dayDone?C.green:C.muted }}>
+                {dayDone ? "Day Complete! ⚔️" : "Tap to mark Day as Done"}
+              </div>
+              <div style={{ fontSize:10, color:C.muted, marginTop:2 }}>
+                {dayDone ? "Day recorded and sealed." : "Only tap when your eating window is fully done"}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Day wrap-up result — shows after dayDone */}
+      {dayDone && (
+        <div style={{ marginTop:12, padding:16, background: under?"#052e16":"#1c0505", borderRadius:12, border:`1px solid ${under?C.green:C.red}`, textAlign:"center" }}>
+          <div style={{ fontSize:28, marginBottom:8 }}>{under ? "⚔️" : "🔥"}</div>
+          <div style={{ fontSize:16, fontWeight:900, color: under?C.green:C.red, marginBottom:6 }}>
+            {under ? "Well Done, Warrior!" : "Tomorrow — Fight Harder!"}
+          </div>
+          <div style={{ fontSize:12, color: under?"#6ee7b7":"#fca5a5", lineHeight:1.7, marginBottom:12 }}>
+            {under
+              ? `You stayed disciplined today. Every warrior who keeps their word builds an unbreakable character. Eiraya is winning. ⚔️`
+              : `Today the battle went over. That is not failure — that is data. Tomorrow you know where to tighten. The war continues. 🔥`
+            }
+          </div>
+          <div style={{ display:"flex", gap:8, justifyContent:"center" }}>
+            <div style={{ background:"#111", borderRadius:8, padding:"8px 14px", textAlign:"center" }}>
+              <div style={{ fontSize:9, color:C.muted }}>Eaten</div>
+              <div style={{ fontSize:16, fontWeight:800, color:under?C.green:C.red }}>{totalDayCal}</div>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", fontSize:16, color:C.muted }}>vs</div>
+            <div style={{ background:"#111", borderRadius:8, padding:"8px 14px", textAlign:"center" }}>
+              <div style={{ fontSize:9, color:C.muted }}>Target</div>
+              <div style={{ fontSize:16, fontWeight:800, color:C.gold }}>{calorieTarget}</div>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", fontSize:16, color:C.muted }}>→</div>
+            <div style={{ background: under?"#0a2a0a":"#2a0a0a", borderRadius:8, padding:"8px 14px", textAlign:"center", border:`1px solid ${under?C.green:C.red}44` }}>
+              <div style={{ fontSize:9, color:under?C.green:C.red }}>{under?"Deficit":"Excess"}</div>
+              <div style={{ fontSize:16, fontWeight:800, color:under?C.green:C.red }}>{Math.abs(calorieTarget-totalDayCal)}</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+const DISC_TARGETS = [14,21,30,45,60,90];
+const DISC_XP = [300,500,800,1200,2000,3500];
 const INIT = {
   currentWeight: 94,
   weightLog: [],
@@ -173,7 +816,9 @@ const INIT = {
   // Journey
   milestonePhotos:{}, startPhoto:null, goalPhoto:null, avatarPhoto:null,
   // Meals
-  meals:{}, herbal:{}, mealSkipped:{}, dailyCalories:{}, calorieTarget:1400,
+  meals:{}, herbal:{}, herbalCalories:{}, mealSkipped:{}, dailyCalories:{}, calorieTarget:1400,
+  calorieEntries:{}, customFoods:{},
+  weeklyIFLevel:{}, weeklyIFStartTime:{}, fastingDays:{}, ifLevelHistory:{}, decreeChecked:{},
   disciplineStreak:0, disciplineStreakTarget:14, lastDisciplineDate:null,
   // Mind
   journal:{}, stress:{}, mood:{}, habits: DEFAULT_HABITS, habitLog:{},
@@ -218,15 +863,21 @@ export default function App() {
   const [tab, setTab] = useState("realm");
   const today = getToday();
   const dayOfWeek = new Date().getDay();
+  const getMondayKey = (offset=0) => {
+    const d=new Date();
+    d.setDate(d.getDate()-((dayOfWeek+6)%7)-(offset*7));
+    return d.toISOString().split("T")[0];
+  };
+  const thisWeekKey = getMondayKey(0);
 
   const [data, setData] = useState(() => {
-    try { const s = localStorage.getItem("fitquest-v3"); return s ? {...INIT,...JSON.parse(s)} : INIT; }
+    try { const s = localStorage.getItem("fitquest-v29"); return s ? {...INIT,...JSON.parse(s)} : INIT; }
     catch { return INIT; }
   });
 
   const save = (updates) => setData(prev => {
     const next = {...prev,...updates};
-    try { localStorage.setItem("fitquest-v3", JSON.stringify(next)); } catch {}
+    try { localStorage.setItem("fitquest-v29", JSON.stringify(next)); } catch {}
     return next;
   });
 
@@ -955,8 +1606,7 @@ export default function App() {
     const thisTarget   = weekTargets[thisWeekKey] || { stepper:2000, walking:2000 };
     const lastTarget   = weekTargets[lastWeekKey] || { stepper:0, walking:0 };
 
-    const getDayDates = (offset=0) => Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-((dayOfWeek+6)%7)+i-(offset*7));return d.toISOString().split("T")[0];});
-    const getWeekTotal = (log,off=0) => getDayDates(off).reduce((s,d)=>s+(log?.[d]||0),0);
+        const getWeekTotal = (log,off=0) => getDayDates(off).reduce((s,d)=>s+(log?.[d]||0),0);
     const stepperWeekTotal = getWeekTotal(data.stepperLog,0);
     const walkWeekTotal    = getWeekTotal(data.walkLog,0);
     const last4 = Array.from({length:4},(_,wi)=>({week:wi===0?"This":wi===1?"Last":`${wi+1}w ago`,stepper:getWeekTotal(data.stepperLog,wi),walking:getWeekTotal(data.walkLog,wi)})).reverse();
@@ -1029,6 +1679,37 @@ export default function App() {
       const stepsLocked = data.stepsWeekLocked?.[thisWeekKey] || false;
       const hasTarget = !!(weekTargets[thisWeekKey]?.stepper);
 
+      // Get the 6 battle days of this week
+      const battleDates = getDayDates(0).slice(0,6);
+      const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat"];
+
+      // Personal best
+      const allWeekKeys = Object.keys(data.weeklyStepTargets||{});
+      const personalBestStepper = allWeekKeys.length > 0
+        ? Math.max(...allWeekKeys.map(wk => getDayDates(0).reduce((s,d)=>{
+            // approximate — just check all stepper logs
+            return s;
+          },0)), stepperWeekTotal)
+        : stepperWeekTotal;
+
+      // Week comparison logic
+      const thisWeekStepperTotal = stepperWeekTotal;
+      const thisWeekWalkTotal = walkWeekTotal;
+      const lastWeekStepperTotal = getWeekTotal(data.stepperLog, 1);
+      const lastWeekWalkTotal = getWeekTotal(data.walkLog, 1);
+
+      const getArrow = (curr, prev) => {
+        if(prev === 0) return { icon:"➡️", label:"First week!", color:C.muted };
+        const diff = curr - prev;
+        const pct = Math.abs(Math.round((diff/prev)*100));
+        if(diff > 0) return { icon:"⬆️", label:`+${diff.toLocaleString()} more than last week (+${pct}%)`, color:C.green };
+        if(diff < 0) return { icon:"⬇️", label:`${diff.toLocaleString()} less than last week (-${pct}%)`, color:C.red };
+        return { icon:"➡️", label:"Same as last week", color:C.muted };
+      };
+
+      const stepperArrow = getArrow(thisWeekStepperTotal, lastWeekStepperTotal);
+      const walkArrow = getArrow(thisWeekWalkTotal, lastWeekWalkTotal);
+
       const lockTarget = () => {
         if(!ts||!tw) return;
         save({
@@ -1046,7 +1727,7 @@ export default function App() {
             <div style={{fontSize:11,color:"#818cf8",marginBottom:12}}>🕐 Kolkata time: {ist.time} · {ist.date}</div>
             <div style={{marginBottom:10}}>
               <div style={{fontSize:10,color:C.muted,marginBottom:5}}>Week name (your choice)</div>
-              <input style={inp} placeholder='e.g. "Week 1 — Foundation" or "April Push"' value={weekLabel} onChange={e=>setWeekLabel(e.target.value)}/>
+              <input style={inp} placeholder='e.g. "Week 1 — Foundation"' value={weekLabel} onChange={e=>setWeekLabel(e.target.value)}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
               <div><div style={{fontSize:10,color:C.muted,marginBottom:5}}>🏃 Stepper (weekly total)</div><input style={inp} type="number" placeholder="e.g. 4200" value={ts} onChange={e=>setTs(e.target.value)}/></div>
@@ -1060,6 +1741,7 @@ export default function App() {
 
       return (
         <div>
+          {/* Week header */}
           <div style={{...card,border:`1px solid ${stepsLocked?C.red+"55":C.goldDim}`,background:stepsLocked?"#0d0000":"#0a0800"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
               <div>
@@ -1070,11 +1752,12 @@ export default function App() {
               {!stepsLocked&&<button style={{...btn("ghost"),fontSize:10,padding:"4px 10px"}} onClick={()=>setSetupMode(true)}>✏️ Edit</button>}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div style={{background:"#111",borderRadius:8,padding:10}}><div style={{fontSize:9,color:C.muted}}>🏃 Stepper target</div><div style={{fontSize:20,fontWeight:800,color:C.gold}}>{thisTarget.stepper.toLocaleString()}</div>{lastTarget.stepper>0&&<div style={{fontSize:9,color:C.muted,marginTop:2}}>Last: {lastTarget.stepper.toLocaleString()}</div>}</div>
-              <div style={{background:"#111",borderRadius:8,padding:10}}><div style={{fontSize:9,color:C.muted}}>👟 Walking target</div><div style={{fontSize:20,fontWeight:800,color:C.green}}>{thisTarget.walking.toLocaleString()}</div>{lastTarget.walking>0&&<div style={{fontSize:9,color:C.muted,marginTop:2}}>Last: {lastTarget.walking.toLocaleString()}</div>}</div>
+              <div style={{background:"#111",borderRadius:8,padding:10}}><div style={{fontSize:9,color:C.muted}}>🏃 Stepper target</div><div style={{fontSize:20,fontWeight:800,color:C.gold}}>{thisTarget.stepper.toLocaleString()}</div>{lastWeekStepperTotal>0&&<div style={{fontSize:9,color:C.muted,marginTop:2}}>Last week: {lastWeekStepperTotal.toLocaleString()}</div>}</div>
+              <div style={{background:"#111",borderRadius:8,padding:10}}><div style={{fontSize:9,color:C.muted}}>👟 Walking target</div><div style={{fontSize:20,fontWeight:800,color:C.green}}>{thisTarget.walking.toLocaleString()}</div>{lastWeekWalkTotal>0&&<div style={{fontSize:9,color:C.muted,marginTop:2}}>Last week: {lastWeekWalkTotal.toLocaleString()}</div>}</div>
             </div>
           </div>
 
+          {/* Log today */}
           <div style={card}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
               <div style={{fontSize:13,fontWeight:700}}>Log Today → +30 XP</div>
@@ -1102,25 +1785,79 @@ export default function App() {
             </div>
           </div>
 
+          {/* Daily log grid — 6 battle days */}
+          <div style={card}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>⚔️ This Week — Daily Log</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6,marginBottom:8}}>
+              {battleDates.map((date,i)=>{
+                const s = data.stepperLog?.[date]||0;
+                const w = data.walkLog?.[date]||0;
+                const isToday = date===today;
+                const hasData = s>0||w>0;
+                const maxS = Math.max(...battleDates.map(d=>data.stepperLog?.[d]||0),1);
+                return(
+                  <div key={date} style={{background:isToday?"#1c1000":hasData?"#0f0f0f":"#0a0a0a",borderRadius:8,padding:"8px 6px",border:`1px solid ${isToday?C.gold:hasData?C.goldDim:C.border}`,textAlign:"center"}}>
+                    <div style={{fontSize:9,color:isToday?C.gold:C.muted,fontWeight:isToday?700:400,marginBottom:4}}>{dayNames[i]}</div>
+                    {hasData ? (
+                      <>
+                        <div style={{height:3,background:"#222",borderRadius:2,marginBottom:4,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:`${Math.min(100,(s/maxS)*100)}%`,background:C.gold,borderRadius:2}}/>
+                        </div>
+                        <div style={{fontSize:9,color:C.gold,fontWeight:700}}>{s>=1000?`${(s/1000).toFixed(1)}k`:s}</div>
+                        <div style={{fontSize:8,color:C.muted}}>🏃</div>
+                        {w>0&&<div style={{fontSize:8,color:C.green}}>{w>=1000?`${(w/1000).toFixed(1)}k`:w}👟</div>}
+                      </>
+                    ):(
+                      <div style={{fontSize:9,color:"#333",marginTop:4}}>{isToday?"Log!":"—"}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:"flex",gap:8,fontSize:9,color:C.muted,justifyContent:"center"}}>
+              <span style={{color:C.gold}}>■ Stepper</span>
+              <span style={{color:C.green}}>■ Walking</span>
+            </div>
+          </div>
+
+          {/* Weekly progression */}
           <div style={{...card,border:`1px solid ${C.goldDim}`}}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>This Week's Progress</div>
-            {[{l:"🏃 Stepper",t:stepperWeekTotal,g:thisTarget.stepper,c:C.gold},{l:"👟 Walking",t:walkWeekTotal,g:thisTarget.walking,c:C.green}].map(s=>(
-              <div key={s.l} style={{marginBottom:14}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span style={{fontSize:12,fontWeight:600}}>{s.l}</span><span style={{fontSize:12,color:s.c,fontWeight:700}}>{s.t.toLocaleString()} / {s.g.toLocaleString()}</span></div>
-                <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,s.g>0?(s.t/s.g)*100:0).toFixed(1)}%`,background:s.c,borderRadius:4,transition:"width 0.8s"}}/></div>
-                <div style={{fontSize:10,color:s.t>=s.g?C.green:C.muted,marginTop:4}}>{s.t>=s.g?"⚡ TARGET SMASHED!":` ${(s.g-s.t).toLocaleString()} remaining`}</div>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>📈 Weekly Progression</div>
+            {[
+              {l:"🏃 Stepper",curr:thisWeekStepperTotal,prev:lastWeekStepperTotal,target:thisTarget.stepper,c:C.gold,arrow:stepperArrow},
+              {l:"👟 Walking",curr:thisWeekWalkTotal,prev:lastWeekWalkTotal,target:thisTarget.walking,c:C.green,arrow:walkArrow}
+            ].map(s=>(
+              <div key={s.l} style={{marginBottom:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{fontSize:12,fontWeight:600}}>{s.l}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:16}}>{s.arrow.icon}</span>
+                    <span style={{fontSize:11,color:s.arrow.color,fontWeight:700}}>{s.curr.toLocaleString()}</span>
+                  </div>
+                </div>
+                <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden",marginBottom:4}}>
+                  <div style={{height:"100%",width:`${Math.min(100,s.target>0?(s.curr/s.target)*100:0).toFixed(1)}%`,background:s.c,borderRadius:4,transition:"width 0.8s"}}/>
+                </div>
+                <div style={{fontSize:10,color:s.arrow.color,marginBottom:2}}>{s.arrow.label}</div>
+                <div style={{fontSize:9,color:C.muted}}>Target: {s.target.toLocaleString()} · {s.curr>=s.target?"⚡ SMASHED!":`${(s.target-s.curr).toLocaleString()} remaining`}</div>
               </div>
             ))}
           </div>
+
+          {/* 4-week comparison chart */}
           <div style={card}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>4-Week Comparison</div>
-            <ResponsiveContainer width="100%" height={150}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>📊 4-Week Comparison</div>
+            <ResponsiveContainer width="100%" height={160}>
               <BarChart data={last4} barCategoryGap="25%">
                 <XAxis dataKey="week" tick={{fontSize:10,fill:C.muted}}/><YAxis tick={{fontSize:9,fill:C.muted}} width={36} tickFormatter={v=>v>=1000?`${(v/1000).toFixed(1)}k`:v}/>
                 <Tooltip contentStyle={{background:"#1a1a1a",border:`1px solid ${C.border}`,borderRadius:8,fontSize:11}}/>
                 <Bar dataKey="stepper" name="Stepper" fill={C.gold} radius={[3,3,0,0]}/><Bar dataKey="walking" name="Walking" fill={C.green} radius={[3,3,0,0]}/>
               </BarChart>
             </ResponsiveContainer>
+            <div style={{display:"flex",gap:16,justifyContent:"center",marginTop:6}}>
+              <span style={{fontSize:10,color:C.gold}}>■ Stepper</span>
+              <span style={{fontSize:10,color:C.green}}>■ Walking</span>
+            </div>
           </div>
         </div>
       );
@@ -1638,8 +2375,7 @@ Create a 7-day weekly practice plan (Mon to Sun). For each day give ONE specific
     const [editMedTarget,setEditMedTarget] = useState(false);
     const [medTargetInput,setMedTargetInput] = useState(String(weekMedTarget));
 
-    const getDayDates = () => Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-((dayOfWeek+6)%7)+i);return d.toISOString().split("T")[0];});
-    const weekMedTotal = getDayDates().reduce((s,d)=>s+(data.meditationLog?.[d]||0),0);
+        const weekMedTotal = getDayDates().reduce((s,d)=>s+(data.meditationLog?.[d]||0),0);
     const todayMed = data.meditationLog?.[today]||0;
 
     const logMed = () => {
@@ -1773,152 +2509,472 @@ Create a 7-day weekly practice plan (Mon to Sun). For each day give ONE specific
     );
   };
 
+  // ─────────────────────────────────────────
+  // CALORIE CALCULATOR COMPONENT
+  // ─────────────────────────────────────────
+  const CalorieSection = () => {
+    const [search, setSearch] = useState("");
+    const [customName, setCustomName] = useState("");
+    const [customCal, setCustomCal] = useState("");
+    const [showCustom, setShowCustom] = useState(false);
+    const [editingIdx, setEditingIdx] = useState(null);
+    const [editCal, setEditCal] = useState("");
+
+    const todayEntries = data.calorieEntries?.[today]?.foods || [];
+    const totalCal = todayEntries.reduce((s,e)=>s+(e.cal||0),0);
+    const target = data.calorieTarget || 1400;
+
+    // Weekly comparison
+    const getWeekDailyTotals = (offset=0) => {
+      return getDayDates(offset).slice(0,6).map(date=>{
+        const entries = data.calorieEntries?.[date]?.foods || [];
+        return {date, total:entries.reduce((s,e)=>s+(e.cal||0),0)};
+      });
+    };
+    const thisWeekTotals = getWeekDailyTotals(0);
+    const lastWeekTotals = getWeekDailyTotals(1);
+    const thisWeekAvg = Math.round(thisWeekTotals.reduce((s,d)=>s+d.total,0) / Math.max(1,thisWeekTotals.filter(d=>d.total>0).length));
+    const lastWeekAvg = Math.round(lastWeekTotals.reduce((s,d)=>s+d.total,0) / Math.max(1,lastWeekTotals.filter(d=>d.total>0).length));
+
+    // All foods = DB + custom
+    const customFoods = Object.values(data.customFoods||{});
+    const allFoods = [...FOOD_DB,...customFoods];
+    const filtered = search.length>1 ? allFoods.filter(f=>f.name.toLowerCase().includes(search.toLowerCase())).slice(0,6) : [];
+
+    const addFood = (food) => {
+      const entry = {name:food.name,cal:food.cal,time:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})};
+      const existing = data.calorieEntries?.[today] || {};
+      const foods = [...(existing.foods||[]),entry];
+      save({calorieEntries:{...data.calorieEntries,[today]:{...existing,foods}}});
+      setSearch("");
+    };
+
+    const addCustomFood = () => {
+      if(!customName.trim()||!customCal) return;
+      const newFood = {name:customName.trim(),cal:parseInt(customCal)||0,cat:"⭐ My Foods"};
+      const key = `custom_${Date.now()}`;
+      save({customFoods:{...data.customFoods,[key]:newFood}});
+      addFood(newFood);
+      setCustomName("");setCustomCal("");setShowCustom(false);
+    };
+
+    const removeEntry = (idx) => {
+      const existing = data.calorieEntries?.[today] || {};
+      const foods = (existing.foods||[]).filter((_,i)=>i!==idx);
+      save({calorieEntries:{...data.calorieEntries,[today]:{...existing,foods}}});
+    };
+
+    const saveEditCal = (idx) => {
+      const existing = data.calorieEntries?.[today] || {};
+      const foods = [...(existing.foods||[])];
+      foods[idx] = {...foods[idx],cal:parseInt(editCal)||foods[idx].cal};
+      save({calorieEntries:{...data.calorieEntries,[today]:{...existing,foods}}});
+      setEditingIdx(null);setEditCal("");
+    };
+
+    const pct = Math.min(100,(totalCal/target)*100);
+    const barColor = totalCal > target ? C.red : totalCal > target*0.85 ? C.gold : C.green;
+
+    return(
+      <div>
+        {/* Daily total */}
+        <div style={{...card,background:"linear-gradient(135deg,#0a1200,#131313)",border:`1px solid ${totalCal>target?C.red:C.green}`}}>
+          <div style={{fontSize:10,color:totalCal>target?C.red:C.green,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>🔥 Today's Calories</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:10}}>
+            <div>
+              <div style={{fontSize:36,fontWeight:900,color:barColor,lineHeight:1}}>{totalCal.toLocaleString()}</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:4}}>of {target} kcal target</div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:13,fontWeight:700,color:totalCal>target?C.red:C.muted}}>{totalCal>target?`+${(totalCal-target).toLocaleString()} over`:`${(target-totalCal).toLocaleString()} remaining`}</div>
+            </div>
+          </div>
+          <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${pct.toFixed(1)}%`,background:barColor,borderRadius:4,transition:"width 0.8s"}}/></div>
+        </div>
+
+        {/* Food search */}
+        <div style={card}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>➕ Add Food</div>
+          <input style={{...inp,marginBottom:8}} placeholder="Search food (e.g. dal, roti, apple...)" value={search} onChange={e=>setSearch(e.target.value)}/>
+          {filtered.length>0&&(
+            <div style={{background:"#111",borderRadius:8,overflow:"hidden",marginBottom:10}}>
+              {filtered.map((f,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",borderBottom:i<filtered.length-1?`1px solid ${C.border}`:"none",cursor:"pointer"}}
+                  onClick={()=>addFood(f)}>
+                  <div>
+                    <div style={{fontSize:13}}>{f.name}</div>
+                    <div style={{fontSize:10,color:C.muted}}>{f.cat}</div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:13,fontWeight:700,color:C.gold}}>{f.cal} kcal</span>
+                    <span style={{fontSize:18,color:C.green}}>+</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {search.length>1&&filtered.length===0&&<div style={{fontSize:12,color:C.muted,marginBottom:8,padding:"8px 0"}}>Not found — add it as custom food below</div>}
+
+          {/* Custom food toggle */}
+          <button style={{...btn("ghost"),width:"100%",fontSize:12}} onClick={()=>setShowCustom(s=>!s)}>
+            {showCustom?"✕ Cancel":"⭐ Add Custom Food"}
+          </button>
+          {showCustom&&(
+            <div style={{marginTop:10,padding:12,background:"#111",borderRadius:8}}>
+              <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Add your own food to the database</div>
+              <input style={{...inp,marginBottom:8}} placeholder="Food name (e.g. Mom's dal)" value={customName} onChange={e=>setCustomName(e.target.value)}/>
+              <input style={{...inp,marginBottom:8}} type="number" placeholder="Calories (kcal per serving)" value={customCal} onChange={e=>setCustomCal(e.target.value)}/>
+              <button style={{...btn(),width:"100%"}} onClick={addCustomFood}>Save & Add ✓</button>
+            </div>
+          )}
+        </div>
+
+        {/* Today's food log */}
+        {todayEntries.length>0&&(
+          <div style={card}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:13,fontWeight:700}}>Today's Log</div>
+              <div style={{fontSize:12,color:C.gold,fontWeight:700}}>{totalCal} kcal</div>
+            </div>
+            {todayEntries.map((e,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:i<todayEntries.length-1?`1px solid ${C.border}`:"none"}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13}}>{e.name}</div>
+                  <div style={{fontSize:10,color:C.muted}}>{e.time}</div>
+                </div>
+                {editingIdx===i?(
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <input style={{...inp,width:70,fontSize:12,padding:"6px 8px"}} type="number" value={editCal} onChange={ev=>setEditCal(ev.target.value)} autoFocus/>
+                    <button style={{...btn("success"),fontSize:11,padding:"6px 10px"}} onClick={()=>saveEditCal(i)}>✓</button>
+                  </div>
+                ):(
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:13,fontWeight:700,color:C.gold,cursor:"pointer"}} onClick={()=>{setEditingIdx(i);setEditCal(String(e.cal));}}>{e.cal} ✏️</span>
+                    <button style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:16}} onClick={()=>removeEntry(i)}>×</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Weekly calorie comparison */}
+        {(thisWeekAvg>0||lastWeekAvg>0)&&(
+          <div style={{...card,border:`1px solid ${C.goldDim}`}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>📊 Weekly Calorie Comparison</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+              <div style={{background:"#0f0800",borderRadius:8,padding:10,border:`1px solid ${C.goldDim}`}}>
+                <div style={{fontSize:9,color:C.gold,textTransform:"uppercase",letterSpacing:1}}>This Week Avg</div>
+                <div style={{fontSize:22,fontWeight:800,color:C.gold,marginTop:4}}>{thisWeekAvg}<span style={{fontSize:11,color:C.muted}}> kcal</span></div>
+              </div>
+              <div style={{background:"#111",borderRadius:8,padding:10}}>
+                <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:1}}>Last Week Avg</div>
+                <div style={{fontSize:22,fontWeight:800,color:C.muted,marginTop:4}}>{lastWeekAvg||"—"}<span style={{fontSize:11,color:C.muted}}>{lastWeekAvg?" kcal":""}</span></div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:4}}>
+              {thisWeekTotals.map((d,i)=>{
+                const h = d.total>0?Math.max(10,Math.min(60,(d.total/2000)*60)):4;
+                const isToday=d.date===today;
+                return(
+                  <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                    <div style={{width:"100%",background:isToday?C.gold:d.total>target?C.red:d.total>0?C.green:"#1a1a1a",borderRadius:"3px 3px 0 0",height:`${h}px`,transition:"height 0.5s"}}/>
+                    <div style={{fontSize:8,color:isToday?C.gold:C.muted}}>{"MTWTFS"[i]}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:"flex",gap:12,justifyContent:"center",marginTop:8,fontSize:9,color:C.muted}}>
+              <span style={{color:C.green}}>■ On track</span>
+              <span style={{color:C.red}}>■ Over target</span>
+              <span style={{color:C.gold}}>■ Today</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ═══════════════════════════════════
   // MEALS TAB
   // ═══════════════════════════════════
   const MealsTab = () => {
-    const [analyzing,setAnalyzing] = useState(null);
-    const todayMeals   = data.meals[today]||{};
-    const todayHerbal  = data.herbal[today]||[];
-    const todaySkipped = data.mealSkipped?.[today]||[];
+    const todayHerbal = data.herbal[today] || [];
+    const [herbalQty, setHerbalQty] = useState({});
+    const weekIFLevel = data.weeklyIFLevel?.[thisWeekKey] || null;
+    const weekStartTime = data.weeklyIFStartTime?.[thisWeekKey] || "";
+    const isFastingDay = data.fastingDays?.[today] || false;
+    const ifData = IF_LEVELS.find(l => l.id === weekIFLevel) || null;
+    const todayCalEntries = data.calorieEntries?.[today] || {};
+    const [decreeChecked, setDecreeChecked] = useState(data.decreeChecked?.[today] || {});
+    const [calorieTarget, setCalTarget] = useState(data.calorieTarget || 1400);
+    const [showTargetEdit, setShowTargetEdit] = useState(false);
+    const [manualTarget, setManualTarget] = useState("");
+    const [userHeight, setUserHeight] = useState(155);
+    const calcAutoTarget = (w, h) => Math.round((10*w + 6.25*h - 5*25 - 161) * 1.2 * 0.8);
 
-    // Discipline streak — consecutive fully-logged days (all meals either logged or skipped)
-    const isDisciplineDay = (date) => {
-      const meals = data.meals[date]||{};
-      const skipped = data.mealSkipped?.[date]||[];
-      return MEALS_LIST.every(s => meals[s] || skipped.includes(s));
+    const saveDecree = (val) => {
+      setDecreeChecked(val);
+      save({ decreeChecked: { ...data.decreeChecked, [today]: val } });
     };
+
+    const herbalCal = todayHerbal.reduce((s, i) => s + Math.round((HERBAL[i]?.cal || 0) * (herbalQty[i] || 1)), 0);
+
+    const getMealEntries = (slot) => todayCalEntries?.[slot] || [];
+    const addMealEntry = (slot, food) => {
+      const ex = { ...(data.calorieEntries?.[today] || {}) };
+      ex[slot] = [...(ex[slot] || []), { name: food.name, cal: food.cal }];
+      save({ calorieEntries: { ...data.calorieEntries, [today]: ex } });
+    };
+    const removeMealEntry = (slot, idx) => {
+      const ex = { ...(data.calorieEntries?.[today] || {}) };
+      ex[slot] = (ex[slot] || []).filter((_, i) => i !== idx);
+      save({ calorieEntries: { ...data.calorieEntries, [today]: ex } });
+    };
+    const editMealEntry = (slot, idx, cal) => {
+      const ex = { ...(data.calorieEntries?.[today] || {}) };
+      const arr = [...(ex[slot] || [])];
+      arr[idx] = { ...arr[idx], cal };
+      ex[slot] = arr;
+      save({ calorieEntries: { ...data.calorieEntries, [today]: ex } });
+    };
+
+    const mealSlots = isFastingDay ? ["Liquids"] : (ifData?.meals || []);
+    const mealCalTotal = mealSlots.reduce((s, slot) => s + getMealEntries(slot).reduce((ss, e) => ss + (e.cal || 0), 0), 0);
+    const totalDayCal = herbalCal + mealCalTotal;
+
+    const setIFLevel = (lvId, startTime) => {
+      save({
+        weeklyIFLevel: { ...data.weeklyIFLevel, [thisWeekKey]: lvId },
+        weeklyIFStartTime: { ...data.weeklyIFStartTime, [thisWeekKey]: startTime },
+      });
+    };
+
     const calcDisciplineStreak = () => {
-      let streak = 0;
-      const d = new Date();
-      for(let i=0;i<365;i++){
+      let streak = 0; const d = new Date();
+      for (let i = 0; i < 365; i++) {
         const ds = d.toISOString().split("T")[0];
-        if(!isDisciplineDay(ds)) break;
-        streak++;
-        d.setDate(d.getDate()-1);
+        const h = data.herbal[ds] || [];
+        const e = data.calorieEntries?.[ds] || {};
+        const f = data.fastingDays?.[ds];
+        if (!h.length && !Object.values(e).flat().length && !f) break;
+        streak++; d.setDate(d.getDate() - 1);
       }
       return streak;
     };
     const disciplineStreak = calcDisciplineStreak();
-
-    // Escalating discipline bonus targets: 14d → 21d → 30d → 45d → 60d
-    const DISC_TARGETS = [14,21,30,45,60,90];
-    const DISC_XP      = [300,500,800,1200,2000,3500];
-    const nextTarget   = DISC_TARGETS.find(t=>disciplineStreak<t)||DISC_TARGETS[DISC_TARGETS.length-1];
-    const nextXP       = DISC_XP[DISC_TARGETS.indexOf(nextTarget)]||3500;
-    const prevTarget   = DISC_TARGETS[DISC_TARGETS.indexOf(nextTarget)-1]||0;
-    const discProgress = ((disciplineStreak-prevTarget)/(nextTarget-prevTarget)*100).toFixed(1);
-    const justHit      = DISC_TARGETS.find(t=>disciplineStreak===t);
-
-    const analyzeMeal = async (slot,imgData) => {
-      setAnalyzing(slot);
-      try {
-        const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:150,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:imgData.split(",")[1]}},{type:"text",text:"Analyze this Indian vegetarian meal. Reply format: NAME | brief description | one short health tip. Max 12 words each section. No calorie numbers."}]}]})});
-        const d=await res.json();
-        const analysis=d.content[0]?.text||"Meal logged ✓";
-        save({meals:{...data.meals,[today]:{...todayMeals,[slot]:{image:imgData,analysis}}}});
-        completeQuest("meals"); grantXP(20,"vitality");
-      } catch { save({meals:{...data.meals,[today]:{...todayMeals,[slot]:{image:imgData,analysis:"Meal logged ✓"}}}}); }
-      finally { setAnalyzing(null); }
-    };
-
-    const skipMeal = (slot) => {
-      const curr = data.mealSkipped?.[today]||[];
-      const updated = curr.includes(slot) ? curr.filter(s=>s!==slot) : [...curr,slot];
-      save({mealSkipped:{...data.mealSkipped,[today]:updated}});
-    };
+    const nextTarget = DISC_TARGETS.find(t => disciplineStreak < t) || 90;
+    const nextXP = DISC_XP[DISC_TARGETS.indexOf(nextTarget)] || 3500;
+    const prevTarget = DISC_TARGETS[DISC_TARGETS.indexOf(nextTarget) - 1] || 0;
+    const discPct = Math.min(100, ((disciplineStreak - prevTarget) / (nextTarget - prevTarget)) * 100);
 
     return (
-      <div style={{padding:"16px 16px 0"}}>
+      <div style={{ padding: "16px 16px 0" }}>
 
-        {/* Discipline Streak Banner */}
-        <div style={{...card, background:disciplineStreak>=14?"linear-gradient(135deg,#0a1a00,#111)":"linear-gradient(135deg,#0f0800,#111)", border:`1px solid ${disciplineStreak>=14?C.green:C.goldDim}`}}>
-          <div style={{fontSize:10,color:disciplineStreak>=14?C.green:C.gold,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>
-            {justHit ? `🎉 ${justHit} DAY MILESTONE HIT! +${nextXP} XP` : "⚔️ Discipline Streak"}
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:10}}>
+        {/* Discipline Streak */}
+        <div style={{ ...card, background: disciplineStreak >= 14 ? "linear-gradient(135deg,#0a1a00,#111)" : "linear-gradient(135deg,#0f0800,#111)", border: `1px solid ${disciplineStreak >= 14 ? C.green : C.goldDim}` }}>
+          <div style={{ fontSize: 10, color: disciplineStreak >= 14 ? C.green : C.gold, letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>⚔️ Discipline Streak</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 }}>
             <div>
-              <div style={{fontSize:32,fontWeight:900,color:disciplineStreak>=14?C.green:C.gold,lineHeight:1}}>{disciplineStreak}<span style={{fontSize:13,fontWeight:400,color:C.muted}}> days</span></div>
-              <div style={{fontSize:11,color:C.muted,marginTop:3}}>{nextTarget-disciplineStreak} days to next milestone</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: disciplineStreak >= 14 ? C.green : C.gold, lineHeight: 1 }}>{disciplineStreak}<span style={{ fontSize: 13, fontWeight: 400, color: C.muted }}> days</span></div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{nextTarget - disciplineStreak} days to next milestone</div>
             </div>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:11,color:C.muted}}>Next reward</div>
-              <div style={{fontSize:14,fontWeight:700,color:C.gold}}>{nextTarget}d → +{nextXP} XP</div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 11, color: C.muted }}>Next reward</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.gold }}>{nextTarget}d → +{nextXP} XP</div>
             </div>
           </div>
-          <div style={{height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden",marginBottom:6}}>
-            <div style={{height:"100%",width:`${Math.max(0,Math.min(100,parseFloat(discProgress)))}%`,background:disciplineStreak>=14?C.green:C.gold,borderRadius:3,transition:"width 0.8s"}}/>
+          <div style={{ height: 6, background: "#1a1a1a", borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
+            <div style={{ height: "100%", width: `${discPct.toFixed(1)}%`, background: disciplineStreak >= 14 ? C.green : C.gold, borderRadius: 3, transition: "width 0.8s" }} />
           </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {DISC_TARGETS.map((t,i)=>(
-              <div key={t} style={{fontSize:9,padding:"3px 8px",borderRadius:12,background:disciplineStreak>=t?"#0a2a0a":"#1a1a1a",border:`1px solid ${disciplineStreak>=t?C.green:C.border}`,color:disciplineStreak>=t?C.green:C.muted,fontWeight:disciplineStreak>=t?700:400}}>
-                {disciplineStreak>=t?"✓":""}{t}d {disciplineStreak>=t?`+${DISC_XP[i]}XP`:""}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {DISC_TARGETS.map(t => (
+              <div key={t} style={{ fontSize: 9, padding: "3px 8px", borderRadius: 12, background: disciplineStreak >= t ? "#0a2a0a" : "#1a1a1a", border: `1px solid ${disciplineStreak >= t ? C.green : C.border}`, color: disciplineStreak >= t ? C.green : C.muted }}>
+                {disciplineStreak >= t ? "✓ " : ""}{t}d
               </div>
             ))}
           </div>
         </div>
 
-        {/* Herbalife */}
-        <div style={{...card,border:`1px solid ${C.goldDim}`,background:"#0a0800"}}>
-          <div style={{fontSize:13,fontWeight:700,color:C.gold,marginBottom:10}}>Herbalife Protocol</div>
-          {HERBAL.map((h,i)=>(
-            <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:i<HERBAL.length-1?`1px solid ${C.border}`:"none",cursor:"pointer"}}
-              onClick={()=>{const curr=data.herbal[today]||[];save({herbal:{...data.herbal,[today]:curr.includes(i)?curr.filter(x=>x!==i):[...curr,i]}});}}>
-              <div style={{width:22,height:22,borderRadius:5,background:todayHerbal.includes(i)?C.gold:"#111",border:`1px solid ${todayHerbal.includes(i)?C.gold:C.border}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s"}}>
-                {todayHerbal.includes(i)&&<span style={{fontSize:12,color:"#000",fontWeight:800}}>✓</span>}
-              </div>
-              <span style={{fontSize:13,color:todayHerbal.includes(i)?C.muted:C.text,textDecoration:todayHerbal.includes(i)?"line-through":"none"}}>{h}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Meals with skip */}
-        {MEALS_LIST.map(slot=>{
-          const meal    = todayMeals[slot];
-          const skipped = todaySkipped.includes(slot);
-          const parts   = meal?.analysis?.split("|")||[];
-          return (
-            <div key={slot} style={{...card,opacity:skipped?0.5:1,border:skipped?`1px solid #333`:undefined}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:skipped?0:10}}>
-                <span style={{fontWeight:700,fontSize:14,textDecoration:skipped?"line-through":"none"}}>{slot}</span>
-                <div style={{display:"flex",gap:6}}>
-                  <button style={{...btn(skipped?"success":"ghost"),fontSize:11,padding:"5px 10px"}} onClick={()=>skipMeal(slot)}>
-                    {skipped?"↩ Unskip":"⏭ Skip"}
-                  </button>
-                  {!skipped&&(
-                    <label style={{...btn("ghost"),padding:"5px 10px",fontSize:11,cursor:"pointer",display:"inline-block"}}>
-                      📷 {meal?"Replace":"Upload"}
-                      <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files[0]){const r=new FileReader();r.onload=ev=>analyzeMeal(slot,ev.target.result);r.readAsDataURL(e.target.files[0]);}}}/>
-                    </label>
-                  )}
-                </div>
-              </div>
-              {skipped && <div style={{fontSize:11,color:C.muted,marginTop:4}}>Meal skipped — logged for discipline streak ✓</div>}
-              {!skipped&&analyzing===slot&&<div style={{color:C.gold,fontSize:13,textAlign:"center",padding:16}}>🤖 Oracle is analyzing...</div>}
-              {!skipped&&meal&&!analyzing&&(
-                <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                  <img src={meal.image} style={{width:72,height:72,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
+        {/* IF Level */}
+        <div style={{ ...card, border: `1px solid ${ifData ? ifData.color + "44" : C.border}` }}>
+          <div style={{ fontSize: 10, color: C.gold, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>⏱ This Week's IF Level</div>
+          {!weekIFLevel
+            ? <IFLevelSelector onSelect={setIFLevel} />
+            : <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <div>
-                    <div style={{fontSize:13,fontWeight:700,color:C.gold}}>{parts[0]?.trim()||"Meal"}</div>
-                    <div style={{fontSize:12,color:C.text,marginTop:2}}>{parts[1]?.trim()}</div>
-                    <div style={{fontSize:11,color:C.muted,marginTop:3}}>{parts[2]?.trim()}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: ifData.color }}>Level {ifData.id} — {ifData.name}</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>🕐 <span style={{ color: ifData.color, fontWeight: 700 }}>{weekStartTime ? `${formatStartTime(weekStartTime)} → ${calcEndTime(weekStartTime, ifData.hours)}` : ""}</span></div>
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{ifData.hours}hr · {ifData.meals.join(", ")}</div>
+                  </div>
+                  <div style={{ background: ifData.color + "22", borderRadius: 8, padding: "8px 12px", textAlign: "center", border: `1px solid ${ifData.color}44` }}>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: ifData.color }}>{ifData.hours}h</div>
+                    <div style={{ fontSize: 9, color: C.muted }}>window</div>
                   </div>
                 </div>
-              )}
-              {!skipped&&!meal&&analyzing!==slot&&<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"8px 0"}}>Tap 📷 to log or ⏭ Skip → +20 XP</div>}
+                <WeekDateTabs battleStartDate={data.battleStartDate} />
+              </div>
+          }
+        </div>
+
+        {/* Fasting toggle */}
+        {weekIFLevel && (
+          <div style={{ ...card, border: isFastingDay ? `1px solid #818cf8` : `1px solid ${C.border}`, background: isFastingDay ? "#0a0a1a" : C.card }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: isFastingDay ? "#818cf8" : C.text }}>Today's Mode</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{isFastingDay ? "⚡ Fast Day — liquids only" : "🍽️ Meal Day — eating window active"}</div>
+              </div>
+              <button style={{ ...btn(isFastingDay ? "ghost" : "primary"), border: isFastingDay ? `1px solid #818cf8` : "none", color: isFastingDay ? "#818cf8" : "#000", fontSize: 12, padding: "7px 14px" }}
+                onClick={() => save({ fastingDays: { ...data.fastingDays, [today]: !isFastingDay } })}>
+                {isFastingDay ? "🍽️ Meal Day" : "⚡ Fast Today"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Herbalife */}
+        <div style={{ ...card, border: `1px solid ${C.goldDim}`, background: "#0a0800" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.gold }}>Herbalife Protocol</div>
+            <div style={{ fontSize: 12, color: C.gold, fontWeight: 700 }}>{herbalCal} kcal</div>
+          </div>
+          {HERBAL.map((h, i) => {
+            const checked = todayHerbal.includes(i);
+            const qty = herbalQty[i] || 1;
+            const itemCal = Math.round(h.cal * qty);
+            return (
+              <div key={i} style={{ padding: "8px 0", borderBottom: i < HERBAL.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+                  onClick={() => { const curr = data.herbal[today] || []; save({ herbal: { ...data.herbal, [today]: curr.includes(i) ? curr.filter(x => x !== i) : [...curr, i] } }); }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 5, background: checked ? C.gold : "#111", border: `1px solid ${checked ? C.gold : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                    {checked && <span style={{ fontSize: 12, color: "#000", fontWeight: 800 }}>✓</span>}
+                  </div>
+                  <span style={{ flex: 1, fontSize: 13, color: checked ? C.muted : C.text, textDecoration: checked ? "line-through" : "none" }}>{h.name}</span>
+                  <span style={{ fontSize: 11, color: checked ? C.gold : C.muted, fontWeight: 700 }}>{itemCal} kcal</span>
+                </div>
+                {checked && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, marginLeft: 32 }}>
+                    <span style={{ fontSize: 10, color: C.muted }}>Qty:</span>
+                    <button style={{ width: 24, height: 24, borderRadius: 6, background: "#1a1a1a", border: `1px solid ${C.border}`, color: C.text, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      onClick={() => setHerbalQty(p => ({ ...p, [i]: Math.max(0.5, (p[i] || 1) - 0.5) }))}>−</button>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.gold, minWidth: 24, textAlign: "center" }}>{qty}</span>
+                    <button style={{ width: 24, height: 24, borderRadius: 6, background: "#1a1a1a", border: `1px solid ${C.border}`, color: C.text, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      onClick={() => setHerbalQty(p => ({ ...p, [i]: (p[i] || 1) + 0.5 }))}>+</button>
+                    <span style={{ fontSize: 10, color: C.muted }}>× {h.cal} = <span style={{ color: C.gold, fontWeight: 700 }}>{itemCal} kcal</span></span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Meal Slots */}
+        {weekIFLevel && !isFastingDay && ifData?.meals.map(slot => {
+          const entries = getMealEntries(slot);
+          const slotCal = entries.reduce((s, e) => s + (e.cal || 0), 0);
+          return (
+            <div key={slot} style={card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{slot}</div>
+                {slotCal > 0 && <div style={{ fontSize: 12, color: C.gold, fontWeight: 700 }}>{slotCal} kcal</div>}
+              </div>
+              <div style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>
+                {weekStartTime ? `${formatStartTime(weekStartTime)} → ${calcEndTime(weekStartTime, ifData.hours)}` : ""}
+              </div>
+              <CalorieSection slot={slot} entries={entries}
+                onAdd={f => addMealEntry(slot, f)}
+                onRemove={idx => removeMealEntry(slot, idx)}
+                onEdit={(idx, cal) => editMealEntry(slot, idx, cal)}
+                customFoods={data.customFoods || {}}
+                onAddCustom={f => save({ customFoods: { ...data.customFoods, [`custom_${Date.now()}`]: f } })} />
             </div>
           );
         })}
 
-        <div style={card}>
-          <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>📋 Kingdom Meal Decree</div>
-          {MEAL_PLAN.map((m,i)=>(
-            <div key={i} style={{display:"flex",gap:12,padding:"8px 0",borderBottom:i<MEAL_PLAN.length-1?`1px solid ${C.border}`:"none"}}>
-              <div style={{fontSize:10,color:C.gold,fontWeight:700,width:68,flexShrink:0}}>{m.time}</div>
-              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>{m.meal}</div>
+        {/* Fast Day */}
+        {weekIFLevel && isFastingDay && (
+          <FastDayLog
+            entries={getMealEntries("Liquids")}
+            onAdd={f => addMealEntry("Liquids", f)}
+            onRemove={idx => removeMealEntry("Liquids", idx)}
+            onEdit={(idx, cal) => editMealEntry("Liquids", idx, cal)}
+            customFoods={data.customFoods || {}}
+            onAddCustom={f => save({ customFoods: { ...data.customFoods, [`custom_${Date.now()}`]: f } })}
+            ifWindow={weekStartTime ? `${formatStartTime(weekStartTime)} → ${calcEndTime(weekStartTime, ifData?.hours || 8)}` : ""} />
+        )}
+
+        {/* Daily Calories */}
+        {weekIFLevel && (
+          <div style={{ ...card, background: "linear-gradient(135deg,#0a1200,#111)", border: `1px solid ${totalDayCal > calorieTarget ? C.red : C.green}44` }}>
+            <div style={{ fontSize: 10, color: C.green, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>🔥 Today's Calories</div>
+            <div style={{ background: "#111", borderRadius: 8, padding: 10, marginBottom: 12, border: `1px solid #2a2a2a` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 10, color: C.muted }}>Daily Target</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: C.gold }}>{calorieTarget} <span style={{ fontSize: 11, fontWeight: 400, color: C.muted }}>kcal</span></div>
+                </div>
+                <button style={{ ...btn("ghost"), fontSize: 10, padding: "5px 10px" }} onClick={() => setShowTargetEdit(e => !e)}>
+                  {showTargetEdit ? "Done" : "✏️ Change"}
+                </button>
+              </div>
+              {showTargetEdit && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>Weight (kg)</div>
+                      <input style={inp} type="number" defaultValue={data.currentWeight || 94} onChange={e => {}} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>Height (cm)</div>
+                      <input style={inp} type="number" value={userHeight} onChange={e => setUserHeight(parseFloat(e.target.value) || 155)} />
+                    </div>
+                  </div>
+                  <button style={{ ...btn("success"), width: "100%", fontSize: 12, marginBottom: 8 }}
+                    onClick={() => { const t = calcAutoTarget(data.currentWeight || 94, userHeight); setCalTarget(t); save({ calorieTarget: t }); setShowTargetEdit(false); }}>
+                    ⚡ Auto-Calculate
+                  </button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input style={{ ...inp, flex: 1 }} type="number" placeholder="Enter manually..." value={manualTarget} onChange={e => setManualTarget(e.target.value)} />
+                    <button style={btn()} onClick={() => { if (manualTarget) { const t = parseInt(manualTarget); setCalTarget(t); save({ calorieTarget: t }); setManualTarget(""); setShowTargetEdit(false); } }}>Set</button>
+                  </div>
+                </div>
+              )}
             </div>
-          ))}
-        </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+              <div style={{ background: "#111", borderRadius: 8, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 9, color: C.muted }}>Herbalife</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: C.gold }}>{herbalCal}</div>
+              </div>
+              <div style={{ background: "#111", borderRadius: 8, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 9, color: C.muted }}>Meals</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: C.green }}>{mealCalTotal}</div>
+              </div>
+              <div style={{ background: totalDayCal > calorieTarget ? "#1c0505" : "#0a1a00", borderRadius: 8, padding: 10, textAlign: "center", border: `2px solid ${totalDayCal > calorieTarget ? C.red : C.green}` }}>
+                <div style={{ fontSize: 9, color: totalDayCal > calorieTarget ? C.red : C.green }}>Total</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: totalDayCal > calorieTarget ? C.red : C.green }}>{totalDayCal}</div>
+              </div>
+            </div>
+            <div style={{ height: 8, background: "#1a1a1a", borderRadius: 4, overflow: "hidden", marginBottom: 6 }}>
+              <div style={{ height: "100%", width: `${Math.min(100, (totalDayCal / calorieTarget) * 100).toFixed(1)}%`, background: totalDayCal > calorieTarget ? C.red : C.green, borderRadius: 4, transition: "width 0.8s" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 8, background: totalDayCal > calorieTarget ? "#1c0505" : "#052e16", border: `1px solid ${totalDayCal > calorieTarget ? C.red : C.green}44`, marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: totalDayCal > calorieTarget ? C.red : C.green, fontWeight: 700 }}>{totalDayCal > calorieTarget ? "⚠️ Excess" : "✅ Deficit"}</div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: totalDayCal > calorieTarget ? C.red : C.green }}>{totalDayCal > calorieTarget ? "+" : "-"}{Math.abs(calorieTarget - totalDayCal)} kcal</div>
+              <div style={{ fontSize: 10, color: C.muted }}>{totalDayCal > calorieTarget ? "over target" : "under target"}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Kingdom Decree */}
+        <KingdomDecree
+          ifData={ifData}
+          startTime={weekStartTime}
+          decreeChecked={decreeChecked}
+          setDecreeChecked={saveDecree}
+          totalDayCal={totalDayCal}
+          calorieTarget={calorieTarget} />
       </div>
     );
   };
@@ -2167,6 +3223,7 @@ Create a 7-day weekly practice plan (Mon to Sun). For each day give ONE specific
     );
   };
 
+
   // ═══════════════════════════════════
   // ORACLE TAB (AI Coach in RPG mode)
   // ═══════════════════════════════════
@@ -2252,15 +3309,16 @@ Oracle rules:
     );
   };
 
+
   const TABS = [
-    {id:"realm",    icon:"⚔️", label:"Realm"   },
-    {id:"journey",  icon:"🚂", label:"Journey" },
-    {id:"workout",  icon:"💪", label:"Battle"  },
-    {id:"meals",    icon:"🍽️", label:"Feast"   },
-    {id:"mind",     icon:"🧠", label:"Mind"    },
-    {id:"hourglass",icon:"⌛", label:"Hours"   },
-    {id:"inv",      icon:"🎒", label:"Inv"     },
-    {id:"oracle",   icon:"🔮", label:"Oracle"  },
+    {id:"realm",    icon:"⚔️", label:"Realm"  },
+    {id:"journey",  icon:"🚂", label:"Journey"},
+    {id:"workout",  icon:"💪", label:"Battle" },
+    {id:"meals",    icon:"🍽️", label:"Feast"  },
+    {id:"mind",     icon:"🧠", label:"Mind"   },
+    {id:"hourglass",icon:"⌛", label:"Hours"  },
+    {id:"inv",      icon:"🎒", label:"Inv"    },
+    {id:"oracle",   icon:"🔮", label:"Oracle" },
   ];
 
   return (
